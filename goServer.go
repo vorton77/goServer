@@ -1,5 +1,8 @@
 package main
 
+// TODO decode saml in app
+// add session persistance
+
 import (
     "fmt"
     "html/template"
