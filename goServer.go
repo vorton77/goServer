@@ -9,7 +9,7 @@ import (
     "github.com/astaxie/beego"
     "io/ioutil"
     "encoding/json"
-	"bytes"
+    "bytes"
 )
 
 // data structure to hold the response json obeject from AuthN
@@ -20,22 +20,23 @@ type Message struct {
     SessionToken string
 }
 
-type newUser struct {
-	profile struct {
-		firstname string
-		lastname  string
-		email     string
-		login     string
-	}
-	credentials struct {
-		password struct {
-			value string
-		}
-		recovery_question struct {
-			question string
-			answer   string
-		}
-	}
+type NewUser struct {
+	Profile struct {
+		Firstname string  `json:"firstName"`
+		Lastname  string  `json:"lastName"`
+		Email     string  `json:"email"`
+		Login     string  `json:"login"`
+		Phone     string  `json:"mobilePhone"`
+	} `json:"profile"`
+	Credentials struct {
+		Password struct {
+			Value string  `json:"value"`
+		} `json:"password"`
+		Recovery_question struct {
+			Question string  `json:"question"`
+			Answer   string  `json:"answer"`
+		} `json:"recovery_question"`
+	} `json:"credentials"`
 }
 
 
@@ -136,44 +137,21 @@ func register(w http.ResponseWriter, r *http.Request) {
 
         // logic part of register
 
-        newUserData := &newUser{}
-	newUserData.profile.firstname = r.Form["element_1_1"][0]
-	newUserData.profile.lastname = r.Form["element_1_2"][0]
-	newUserData.profile.email = r.Form["element_3"][0]
-	newUserData.profile.login = r.Form["element_2"][0]
-	newUserData.credentials.password.value = "\"Password1\""
-	newUserData.credentials.recovery_question.question = "\"What is your favorite language\""
-	newUserData.credentials.recovery_question.answer = "\"golang\""
+        newUserData := NewUser{}
+	newUserData.Profile.Firstname = r.Form["element_1_1"][0]
+	newUserData.Profile.Lastname = r.Form["element_1_2"][0]
+	newUserData.Profile.Email = r.Form["element_3"][0]
+	newUserData.Profile.Login = r.Form["element_2"][0]
+        newUserData.Profile.Phone = r.Form["element_4_1"][0] + "-" + r.Form["element_4_2"][0] + "-" + r.Form["element_4_3"][0]
+	newUserData.Credentials.Password.Value = "Password1"
+	newUserData.Credentials.Recovery_question.Question = "What is your favorite language"
+	newUserData.Credentials.Recovery_question.Answer = "golang"
 
-	fmt.Println(newUserData)
+        jsonReq, _ := json.Marshal(newUserData)
 
-
-        jsonReq, err := json.Marshal(newUserData)
-
-        if err == nil{
-            fmt.Println("jsonReq is ...")
-            fmt.Println(jsonReq)
-        } else {
-            fmt.Println("json error is ...")
-            fmt.Println(err)
-        }
-
-        payload := strings.NewReader("{\n  \"profile\": " +
-                "{\n    \"firstName\": \""+r.Form["element_1_1"][0]+"\",\n    " +
-                "\"lastName\": \""+r.Form["element_1_2"][0]+"\",\n    " +
-                "\"email\": \""+r.Form["element_3"][0]+"\",\n    " +
-                "\"login\": \""+r.Form["element_2"][0]+"\"\n  },\n  " +
-                "\"credentials\": " +
-                "{\n    \"password\" : { \"value\": \""+"Password1"+"\" },\n    " +
-                "\"recovery_question\": {\n      " +
-                "\"question\": \"What is your favorite language\",\n      " +
-                "\"answer\": \"golang\"\n    }}}")
-
-        fmt.Println(payload)
+	fmt.Println(bytes.NewBuffer(jsonReq))
 
         url := oktaOrg + userEndPoint
-
-        fmt.Println(url)
 
         req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
 
