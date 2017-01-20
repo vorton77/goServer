@@ -9,6 +9,7 @@ import (
     "github.com/astaxie/beego"
     "io/ioutil"
     "encoding/json"
+	"bytes"
 )
 
 // data structure to hold the response json obeject from AuthN
@@ -19,12 +20,32 @@ type Message struct {
     SessionToken string
 }
 
+type newUser struct {
+	profile struct {
+		firstname string
+		lastname  string
+		email     string
+		login     string
+	}
+	credentials struct {
+		password struct {
+			value string
+		}
+		recovery_question struct {
+			question string
+			answer   string
+		}
+	}
+}
+
+
 // set your okta org URL and API key here
 const (
     oktaOrg string = "https://vorton.okta.com"
     oktaKey string = "SSWS 00U_IlbOhvpKH7EA8KwuKYZs2dmnBy47dSaUQr-Zvw"
     authEndPoint string = "/api/v1/authn"
     userEndPoint string = "/api/v1/users?activate=false"
+    loginRedirect string = "/home/vannortondemo_samplegolangapp_1/0oaarewi1qL8QyiKg0x7/alnarf8ei1vAq9y9n0x7"
 )
 
 func appHome(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +110,7 @@ func login(w http.ResponseWriter, r *http.Request) {
             fmt.Println("SessionToken is ...", loginRes.SessionToken)
             fmt.Println("Status is ...", loginRes.Status)
 
-            loginURL := oktaOrg + "/login/sessionCookieRedirect?token=" + loginRes.SessionToken + "&redirectUrl=http://localhost:9090"
+            loginURL := oktaOrg + "/login/sessionCookieRedirect?token=" + loginRes.SessionToken + "&redirectUrl=" + oktaOrg + loginRedirect
 
             http.Redirect(w, r, loginURL, 301)
 
@@ -115,6 +136,28 @@ func register(w http.ResponseWriter, r *http.Request) {
 
         // logic part of register
 
+        newUserData := &newUser{}
+	newUserData.profile.firstname = r.Form["element_1_1"][0]
+	newUserData.profile.lastname = r.Form["element_1_2"][0]
+	newUserData.profile.email = r.Form["element_3"][0]
+	newUserData.profile.login = r.Form["element_2"][0]
+	newUserData.credentials.password.value = "\"Password1\""
+	newUserData.credentials.recovery_question.question = "\"What is your favorite language\""
+	newUserData.credentials.recovery_question.answer = "\"golang\""
+
+	fmt.Println(newUserData)
+
+
+        jsonReq, err := json.Marshal(newUserData)
+
+        if err == nil{
+            fmt.Println("jsonReq is ...")
+            fmt.Println(jsonReq)
+        } else {
+            fmt.Println("json error is ...")
+            fmt.Println(err)
+        }
+
         payload := strings.NewReader("{\n  \"profile\": " +
                 "{\n    \"firstName\": \""+r.Form["element_1_1"][0]+"\",\n    " +
                 "\"lastName\": \""+r.Form["element_1_2"][0]+"\",\n    " +
@@ -132,7 +175,7 @@ func register(w http.ResponseWriter, r *http.Request) {
 
         fmt.Println(url)
 
-        req, _ := http.NewRequest("POST", url, payload)
+        req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
 
         req.Header.Add("accept", "application/json")
         req.Header.Add("content-type", "application/json")
