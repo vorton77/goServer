@@ -136,7 +136,7 @@ func appHome(w http.ResponseWriter, r *http.Request) {
 	if session.Values["token"] == nil {
 		fmt.Println("There is no valid end user session!\nRedirecting to login screen")
 		r.Method = "GET"
-		login(w, r)
+		loginAndRegister(w, r)
 	} else {
 
 		fmt.Println("\nThe token from the session is...", session.Values["token"])
@@ -234,7 +234,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 			fmt.Println("http error code is...", res.Status)
 			fmt.Println(err)
 			r.Method = "GET"
-			login(w, r)
+			loginAndRegister(w, r)
 		}
 	}
 }
@@ -253,12 +253,12 @@ func register(w http.ResponseWriter, r *http.Request) {
 		// logic part of register
 
 		newUserData := NewUser{}
-		newUserData.Profile.Firstname = r.Form["element_1_1"][0]
-		newUserData.Profile.Lastname = r.Form["element_1_2"][0]
-		newUserData.Profile.Email = r.Form["element_3"][0]
-		newUserData.Profile.Login = r.Form["element_2"][0]
-		newUserData.Profile.Phone = r.Form["element_4_1"][0] + "-" + r.Form["element_4_2"][0] + "-" + r.Form["element_4_3"][0]
-		newUserData.Credentials.Password.Value = "Password1"
+		newUserData.Profile.Firstname = r.Form["firstname"][0]
+		newUserData.Profile.Lastname = r.Form["lastname"][0]
+		newUserData.Profile.Email = r.Form["email"][0]
+		newUserData.Profile.Login = r.Form["username"][0]
+		newUserData.Profile.Phone = r.Form["phone"][0]
+		newUserData.Credentials.Password.Value = r.Form["password"][0]
 		newUserData.Credentials.Recovery_question.Question = "What is your favorite language"
 		newUserData.Credentials.Recovery_question.Answer = "golang"
 		stringArray := []string {groupID}
@@ -286,8 +286,15 @@ func register(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(res)
 		fmt.Println(string(body))
 
-		appHome(w, r)
+		login(w, r)
 
+	}
+}
+
+func loginAndRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		t, _ := template.ParseFiles("html/loginAndRegister.html")
+		t.Execute(w, nil)
 	}
 }
 
@@ -295,6 +302,8 @@ func main() {
 	http.HandleFunc("/", appHome) // setting router rule
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/register", register)
+	http.Handle("/html/", http.StripPrefix("/html/", http.FileServer(http.Dir("./html"))))
+	http.HandleFunc("/loginAndRegister", loginAndRegister)
 	beego.SetStaticPath("/html", "/html")
 	err := http.ListenAndServeTLS(":9090", "server.crt", "server.key", nil) // setting listening port
 	if err != nil {
