@@ -75,6 +75,12 @@ type oktaSession struct {
 		     } `json:"_embedded"`
 }
 
+type Home struct {
+	Title string
+	Name string
+	Username string
+}
+
 
 // set your okta org URL and API key here
 const (
@@ -147,8 +153,15 @@ func appHome(w http.ResponseWriter, r *http.Request) {
 			fmt.Println("key:", k)
 			fmt.Println("val:", strings.Join(v, ""))
 		}
-		httpOutput := "Hello " + session.Values["name"].(string) + ", you are loged in as " + session.Values["loginID"].(string)
-		fmt.Fprintf(w, httpOutput ) // write data to response
+		homeData := Home{}
+		homeData.Title = "My Sample Go Application"
+		homeData.Name = session.Values["name"].(string)
+		homeData.Username = session.Values["loginID"].(string)
+		t, _ := template.ParseFiles("html/home.html")
+		t.Execute(w, homeData)
+
+//		httpOutput := "Hello " + session.Values["name"].(string) + ", you are loged in as " + session.Values["loginID"].(string)
+//		fmt.Fprintf(w, httpOutput ) // write data to response
 	}
 }
 
