@@ -311,10 +311,33 @@ func loginAndRegister(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func logout(w http.ResponseWriter, r *http.Request){
+	url := oktaOrg + "/login/signout"
+	req, _ := http.NewRequest("GET", url, nil)
+	res, _ := http.DefaultClient.Do(req)
+	defer res.Body.Close()
+
+	// get an active session or create a new one.
+	session, err := store.Get(r, "session-name")
+	_ = err
+
+	session.Values["token"] = nil
+
+	session.Options = &sessions.Options{
+		MaxAge:   -1,
+	}
+
+	session.Save(r, w)
+
+	r.Method = "GET"
+	loginAndRegister(w, r)
+}
+
 func main() {
 	http.HandleFunc("/", appHome) // setting router rule
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/register", register)
+	http.HandleFunc("/logout", logout)
 	http.Handle("/html/", http.StripPrefix("/html/", http.FileServer(http.Dir("./html"))))
 	http.HandleFunc("/loginAndRegister", loginAndRegister)
 	beego.SetStaticPath("/html", "/html")
