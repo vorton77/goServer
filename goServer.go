@@ -24,11 +24,11 @@ type signOn struct {
 	Username   string `json:"username"`
 	Password   string `json:"password"`
 	RelayState string `json:"relayState"`
-	options    struct {
+	Options    struct {
 			   MultiFactor  bool `json:"multiOptionalFactorEnroll"`
 			   WarnPWExpire bool `json:"warnBeforePasswordExpired"`
 		   } `json:"options"`
-	context    struct {
+	Context    struct {
 			   DeviceToken string `json:"deviceToken"`
 		   } `json:"context"`
 }
@@ -81,8 +81,9 @@ type Home struct {
 	Username string
 }
 
-
 // set your okta org URL and API key here
+// these can be provided at build time or in a config
+// setting these values during the build is the most secure way of doing it
 const (
 	oktaOrg string = "https://vorton.okta.com"
 	oktaKey string = "SSWS 00U_IlbOhvpKH7EA8KwuKYZs2dmnBy47dSaUQr-Zvw"
@@ -112,197 +113,290 @@ func GenerateRandomBytes(n int) ([]byte, error) {
 // It will return an error if the system's secure random
 // number generator fails to function correctly, in which
 // case the caller should not continue.
-
 func GenerateRandomString(s int) (string, error) {
 	b, err := GenerateRandomBytes(s)
 	return base64.URLEncoding.EncodeToString(b), err
 }
 
-// Example: this will give us a 44 byte, base64 encoded output
+// This will give us a 44 byte, base64 encoded output
 var sessionKey, _ = GenerateRandomString(32)
 
+// Initilize a new CookieStore for session data using a random
+// generated 44 byte string
 var store = sessions.NewCookieStore([]byte(sessionKey))
 
-
+// appHomne is the aplications home page which uses homeData as an interface
+// to the Home struct for presenting data to the page
 func appHome(w http.ResponseWriter, r *http.Request) {
-	r.ParseForm()
 
 	//Parse url parameters passed, then parse the response packet for the POST body (request body)
-	// attention: If you do not call ParseForm method, the following data can not be obtained form
+	// attention: If you do not call ParseForm method, then r.Form with not contain the URL params
+	r.ParseForm()
 
-	//fmt.Println(r.Form) // print information on server side.
-	//fmt.Println("path", r.URL.Path)
-	//fmt.Println("scheme", r.URL.Scheme)
-	//fmt.Println(r.Form["url_long"])
-
+	// Get the user's session data if any
+	// If the user is not logged in then a new nession will be initialized with nothing in it
 	session, err := store.Get(r, "session-name")
+
+	// print out session data
+	// this will be empty if the user has not logged in yet
 	fmt.Printf("%v", session)
+
+	// do nothing with the error info from get session
 	_ = err
 
+	// if the is no access token in the session by the name token then send the user to the loginAndRegister screen
+	// to either login or register a new account
 	if session.Values["token"] == nil {
+
+		// print out the fact the user has no session
 		fmt.Println("There is no valid end user session!\nRedirecting to login screen")
+
+		// set the http verb to GET so the loginAndRegister form does not submit automatically
 		r.Method = "GET"
+
+		// send the user to the loginAndRegister page
 		loginAndRegister(w, r)
+
+	// if the user has a value for token in the current session
 	} else {
 
+		// print out all the session data debug only and can be removed
 		fmt.Println("\nThe token from the session is...", session.Values["token"])
 		fmt.Println("The name of the user is...", session.Values["name"])
 		fmt.Println("The login ID of the user is...", session.Values["loginID"])
 
+		// print out all the request parameters set back from okta
+		// this should be SAMLResponse and RelayState
 		for k, v := range r.Form {
 			fmt.Println("key:", k)
 			fmt.Println("val:", strings.Join(v, ""))
 		}
-		homeData := Home{}
-		homeData.Title = "My Sample Go Application"
-		homeData.Name = session.Values["name"].(string)
-		homeData.Username = session.Values["loginID"].(string)
-		t, _ := template.ParseFiles("html/home.html")
-		t.Execute(w, homeData)
 
-//		httpOutput := "Hello " + session.Values["name"].(string) + ", you are loged in as " + session.Values["loginID"].(string)
-//		fmt.Fprintf(w, httpOutput ) // write data to response
+		// initialize the interface to the Hone struct for exporting data to the page
+		homeData := Home{}
+
+		// set the title of the page
+		homeData.Title = "My Sample Go Application"
+
+		// set the full name of the user from the session
+		homeData.Name = session.Values["name"].(string)
+
+		// set the user ID used to login from the session
+		homeData.Username = session.Values["loginID"].(string)
+
+		// parse the html temnplate
+		t, _ := template.ParseFiles("html/home.html")
+
+		// write the parsed template data and the homeData interface to the browser
+		t.Execute(w, homeData)
 	}
 }
 
+// login will parse form data from loginAndRegister when the user clicks "LOG IN"
 func login(w http.ResponseWriter, r *http.Request) {
 
+	// print out the http verb.  this should always be POST
 	fmt.Println("method:", r.Method) //get request method
 
-	if r.Method == "GET" {
-		t, _ := template.ParseFiles("html/login.gtpl")
-		t.Execute(w, nil)
-	} else {
-		r.ParseForm()
-		// logic part of log in
+	// This will parse all the form data from the user sent in the request
+	r.ParseForm()
 
-		signOnData := signOn{}
-		signOnData.Username = r.Form["username"][0]
-		signOnData.Password = r.Form["password"][0]
-		signOnData.RelayState = "/"
-		signOnData.options.MultiFactor = false
-		signOnData.options.WarnPWExpire = false
-		signOnData.context.DeviceToken = "26q43Ak9Eh04p7H6Nnx0m69JqYOrfVBY"
+	// Initialize the interface to the signOn struct
+	signOnData := signOn{}
 
-		jsonReq, _ := json.Marshal(signOnData)
+	// Initialize the data used to build the json request bodyu
+	// sing the above interface
+	signOnData.Username = r.Form["username"][0]
+	signOnData.Password = r.Form["password"][0]
+	signOnData.RelayState = "/"
+	signOnData.Options.MultiFactor = false
+	signOnData.Options.WarnPWExpire = false
+	signOnData.Context.DeviceToken = "26q43Ak9Eh04p7H6Nnx0m69JqYOrfVBY"
 
-		fmt.Println(bytes.NewBuffer(jsonReq))
+	// Build the json request body
+	jsonReq, _ := json.Marshal(signOnData)
 
-		//        payload := strings.NewReader("{\n    \"username\": \""+r.Form["username"][0]+"\",\n    " +
-		//                "\"password\": \""+r.Form["password"][0]+"\",\n    " +
-		//                "\"relayState\": \""+"/\",\n    " +
-		//                "\"options\": {\n       " +
-		//                "\"multiOptionalFactorEnroll\": false,\n       " +
-		//                "\"warnBeforePasswordExpired\": false \n        },\n    \"context\": {\n          " +
-		//                "\"deviceToken\": \"26q43Ak9Eh04p7H6Nnx0m69JqYOrfVBY\" \n   }}")
+	// print out the json object for debugging
+	// this can be removed later
+	fmt.Println(bytes.NewBuffer(jsonReq))
 
-		//       fmt.Println(payload)
+	// construct the URL for okta authentication
+	// oktaOrg is the URL for the okta org Ex. https://company.okta.com
+	// authEndPoint is the rest of the URL needed to hit the AuthN API Ex. /api/v1/authn
+	url := oktaOrg + authEndPoint
 
-		url := oktaOrg + authEndPoint
+	// create the new http request object that will call the API with the
+	// above URL and the marshaled json
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
 
-		req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
+	// add headers to the request including the admin API key
+	// the postman token still needs to be dealt with
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("content-type", "application/json")
+	req.Header.Add("authorization", oktaKey)
+	req.Header.Add("cache-control", "no-cache")
+	req.Header.Add("postman-token", "db3d87a4-41d9-eb33-91a6-6881bda94fac")
 
-		req.Header.Add("accept", "application/json")
-		req.Header.Add("content-type", "application/json")
-		req.Header.Add("authorization", oktaKey)
-		req.Header.Add("cache-control", "no-cache")
-		req.Header.Add("postman-token", "db3d87a4-41d9-eb33-91a6-6881bda94fac")
+	// POST the request to the API
+	// all data in the request is contained in the req object
+	res, httpErr := http.DefaultClient.Do(req)
 
-		res, _ := http.DefaultClient.Do(req)
+	// this will leave the http request open until we exit login function
+	defer res.Body.Close()
 
-		defer res.Body.Close()
+	// this will convert the ioReader object returned form the req and convert it into a byte array
+	// that can be unmarsheled into a json response which will represent the initial okta session
+	body, _ := ioutil.ReadAll(res.Body)
 
-		body, _ := ioutil.ReadAll(res.Body)
+	// declare a variable of type oktaSession to hole the okta session json
+	var loginRes oktaSession
 
-		var loginRes oktaSession
+	// unmarshal the []byte body which represents the json returned in the response
+	// loginRes is a interface to the oktaSession struct
+	err := json.Unmarshal(body, &loginRes)
 
-		err := json.Unmarshal(body, &loginRes)
+	// check for errors in the unmarshaling prosses and if we find any print them out
+	// and stop there with return
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
-		if res.Status == "200 OK" {
+	// if the login response has a status of 200 OK then let's prep the user to access the app
+	if res.Status == "200 OK" {
 
-			// get an active session or create a new one.
-			session, err := store.Get(r, "session-name")
-			_ = err
+		// create a new active session.
+		// the same method is used for getting an active session in appHome
+		// TODO somthing more descriptive than session-name
+		session, err := store.Get(r, "session-name")
+		_ = err
 
-			//  set session to expire after one day
-			session.Options = &sessions.Options{
-				Path:     "/",
-				MaxAge:   86400,
-				HttpOnly: true,
-			}
-
-			// set some session values to ID the user
-			session.Values["token"] =  loginRes.SessionToken /*set value*/
-			session.Values["name"] = loginRes.Embedded.User.Profile.FirstName + " " + loginRes.Embedded.User.Profile.LastName
-			session.Values["loginID"] = loginRes.Embedded.User.Profile.Login
-
-			// Save it before we write to the response/return from the handler.
-			session.Save(r, w)
-
-			loginURL := oktaOrg + "/login/sessionCookieRedirect?token=" + loginRes.SessionToken + "&redirectUrl=" + oktaOrg + loginRedirect
-
-			http.Redirect(w, r, loginURL, 301)
-
-		} else {
-			fmt.Println("http error code is...", res.Status)
-			fmt.Println(err)
-			r.Method = "GET"
-			loginAndRegister(w, r)
+		//  set session to expire after one day
+		// time here is represented in seconds so 2 days would be 86400 * 2 and so on
+		session.Options = &sessions.Options{
+			Path:     "/",
+			MaxAge:   86400,
+			HttpOnly: true,
 		}
+
+		// set some session values to ID the user
+		// accessToken, full name, and user ID for now.
+		session.Values["token"] =  loginRes.SessionToken
+		session.Values["name"] = loginRes.Embedded.User.Profile.FirstName + " " + loginRes.Embedded.User.Profile.LastName
+		session.Values["loginID"] = loginRes.Embedded.User.Profile.Login
+
+		// Save it before we write to the response/return from the handler.
+		session.Save(r, w)
+
+		// build a string value that represents the URL the user will be redirected to
+		// oktaOrg is https://company.okta.com
+		// loginRes.Session is the session token returned from the login request
+		// IMPORTANT: oktaOrg + loginRedirect is the application embed link from okta which points back to appHome
+		loginURL := oktaOrg + "/login/sessionCookieRedirect?token=" + loginRes.SessionToken + "&redirectUrl=" + oktaOrg + loginRedirect
+
+		// redirect the user's browser
+		// this allows okta to set the okta session cookies so other applications
+		// can be accessed without prompting for reauthentication
+		http.Redirect(w, r, loginURL, 301)
+
+		// TODO error handling needs to be implemented here for authentication failures
+		// TODO error messages to the user will be stored as FlashMessages in the session so that
+		// TODO so that they are automatically removed once they are read
+
+		// TODO error conditions to start:
+		// TODO 	authentication failure bad username and or password
+		} else {
+
+		// print out the response status from the login response when not "200 OK"
+		fmt.Println("http error code is...", res.Status)
+
+		// dump any error information set be the httpRequest execution
+		fmt.Println(httpErr)
+
+		// set the http verb in the request to GET so the loginAndRegister form is not automatically resubmited
+		// creating an endless loop
+		r.Method = "GET"
+
+		//  send the user back to the loginAndRegister page to try again
+		loginAndRegister(w, r)
 	}
 }
 
 func register(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("method:", r.Method) //get request method
 
-	// would like to change this to switch on VERB but GET and POST are fine for now.
+	// parse register form from request so we can read
+	// the calues from r.Form
+	r.ParseForm()
 
-	if r.Method == "GET" {
-		t, _ := template.ParseFiles("html/register.gtpl")
-		t.Execute(w, nil)
-	} else {
-		r.ParseForm()
+	// initialize interface to NewUser struct
+	newUserData := NewUser{}
 
-		// logic part of register
+	// set values from the register form to the newUserData interface
+	newUserData.Profile.Firstname = r.Form["firstname"][0]
+	newUserData.Profile.Lastname = r.Form["lastname"][0]
+	newUserData.Profile.Email = r.Form["email"][0]
+	newUserData.Profile.Login = r.Form["username"][0]
+	newUserData.Profile.Phone = r.Form["phone"][0]
+	newUserData.Credentials.Password.Value = r.Form["password"][0]
 
-		newUserData := NewUser{}
-		newUserData.Profile.Firstname = r.Form["firstname"][0]
-		newUserData.Profile.Lastname = r.Form["lastname"][0]
-		newUserData.Profile.Email = r.Form["email"][0]
-		newUserData.Profile.Login = r.Form["username"][0]
-		newUserData.Profile.Phone = r.Form["phone"][0]
-		newUserData.Credentials.Password.Value = r.Form["password"][0]
-		newUserData.Credentials.Recovery_question.Question = "What is your favorite language"
-		newUserData.Credentials.Recovery_question.Answer = "golang"
-		stringArray := []string {groupID}
-		newUserData.GroupIds = stringArray
+	// TODO add security question to registration form as we are setting static values for now
+	newUserData.Credentials.Recovery_question.Question = "What is your favorite language"
+	newUserData.Credentials.Recovery_question.Answer = "golang"
 
-		jsonReq, _ := json.Marshal(newUserData)
+	// create a string array from the groupID in okta that the new user will be put into
+	// for applicatoin access
+	stringArray := []string {groupID}
 
-		fmt.Println(bytes.NewBuffer(jsonReq))
+	// add the array for groupIDs to the newUserData interface
+	// for now this is a single group for a single app
+	newUserData.GroupIds = stringArray
 
-		url := oktaOrg + userEndPoint
+	// marshal the NewUser to create a json object used in the add user API call
+	jsonReq, _ := json.Marshal(newUserData)
 
-		req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
+	// print out the json that has been marshaled
+	// converted to a []byte for printing
+	fmt.Println(bytes.NewBuffer(jsonReq))
 
-		req.Header.Add("accept", "application/json")
-		req.Header.Add("content-type", "application/json")
-		req.Header.Add("authorization", oktaKey)
-		req.Header.Add("cache-control", "no-cache")
-		req.Header.Add("postman-token", "db3d87a4-41d9-eb33-91a6-6881bda94fac")
+	// build the URL to the add user API end point in okta
+	// see constants at the top
+	url := oktaOrg + userEndPoint
 
-		res, _ := http.DefaultClient.Do(req)
+	//  create a new http request object with the []byte from json.Marshal and the url
+	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
 
-		defer res.Body.Close()
-		body, _ := ioutil.ReadAll(res.Body)
+	// add http header info for the API call including the admin API access key
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("content-type", "application/json")
+	req.Header.Add("authorization", oktaKey)
+	req.Header.Add("cache-control", "no-cache")
 
-		fmt.Println(res)
-		fmt.Println(string(body))
+	// TODO this still needs to be dealt with
+	req.Header.Add("postman-token", "db3d87a4-41d9-eb33-91a6-6881bda94fac")
 
-		login(w, r)
+	// make the http call to the API putting the response in res
+	res, _ := http.DefaultClient.Do(req)
 
-	}
+	// close the connection when the register function exits
+	defer res.Body.Close()
+
+	// print out the body of the response after converting it to a []byte
+	body, _ := ioutil.ReadAll(res.Body)
+
+	// print out the complete response object for debbuging
+	// can be removed
+	fmt.Println(res)
+
+	// print out the string representation of the response body
+	// TODO this should be Unmarshaled into a json object for getting profile data
+	fmt.Println(string(body))
+
+	// log the new user in with the username and password supplied in the registration form
+	// TODO we need more data validation here to ensure the registration was successful
+	login(w, r)
 }
+
 
 func loginAndRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
