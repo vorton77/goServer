@@ -12,4 +12,12 @@ Add the okta saml template app to the okta group
 
 You'll need the groupID and the application embed link from your okta org
 
+Next you'll need to generate a server key and put it in the same directory where goServer will run
+
+openssl genrsa -out server.key 2048
+
+Next you'll need to use the sew server key to server certificate.  The certificate needs to be in the same directory where goServer will run.
+
+openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
+
 Give it a shot!
