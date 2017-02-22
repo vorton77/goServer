@@ -14,26 +14,27 @@
     <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
     <![endif]-->
 
+    <!-- Bootstrap -->
+    <link href="html/loginAndRegister.css" rel="stylesheet">
+
     <!-- Latest compiled and minified CSS -->
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 
     <!-- Latest compiled and minified JavaScript -->
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 
-    <!-- Bootstrap -->
-    <link href="html/loginAndRegister.css" rel="stylesheet">
+
 
 </head>
 <body>
 
 <div class="container">
-<div class="header">
-    <h1>Welcome to a simple web application writen in Golang!</h1>
-</div>
+
 
 <div class="jumbotron">
+    <h2>Welcome to a simple web application writen in Golang!</h2>
     <p>Welcome {{ .Name }}! You are logged in as {{ .Username }}</p>
-    <p><a class="btn btn-primary" href="/logout" role="button">Sign out</a></p>
+    <p><a class="btn btn-default" href="/logout" role="button">Sign out</a></p>
 </div>
 
 

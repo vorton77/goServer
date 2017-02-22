@@ -1,4 +1,10 @@
 body {
+    background-color: black;
+    background: url(../img/SWbackground.jpeg) no-repeat center center fixed;
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
     padding-top: 90px;
 }
 .panel-login {
@@ -23,7 +29,7 @@ body {
 	transition: all 0.1s linear;
 }
 .panel-login>.panel-heading a.active{
-	color: #029f5b;
+	color: #0044D6;
 	font-size: 18px;
 }
 .panel-login>.panel-heading hr{
@@ -54,7 +60,7 @@ body {
 	border-color: #ccc;
 }
 .btn-login {
-	background-color: #59B2E0;
+	background-color: #5B5B5B;
 	outline: none;
 	color: #fff;
 	font-size: 14px;
@@ -62,13 +68,13 @@ body {
 	font-weight: normal;
 	padding: 14px 0;
 	text-transform: uppercase;
-	border-color: #59B2E6;
+	border-color: #5B5B5B;
 }
 .btn-login:hover,
 .btn-login:focus {
 	color: #fff;
-	background-color: #53A3CD;
-	border-color: #53A3CD;
+	background-color: #303030;
+	border-color: #303030;
 }
 .forgot-password {
 	text-decoration: underline;
@@ -81,7 +87,7 @@ body {
 }
 
 .btn-register {
-	background-color: #1CB94E;
+	background-color: #5B5B5B;
 	outline: none;
 	color: #fff;
 	font-size: 14px;
@@ -89,11 +95,11 @@ body {
 	font-weight: normal;
 	padding: 14px 0;
 	text-transform: uppercase;
-	border-color: #1CB94A;
+	border-color: #5B5B5B;
 }
 .btn-register:hover,
 .btn-register:focus {
 	color: #fff;
-	background-color: #1CA347;
-	border-color: #1CA347;
+	background-color: #303030;
+	border-color: #303030;
 }

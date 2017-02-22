@@ -15,4 +15,5 @@ $(function() {
 		e.preventDefault();
 	});
 
-});
+}
+);

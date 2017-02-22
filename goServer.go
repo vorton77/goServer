@@ -17,6 +17,8 @@ import (
 	"github.com/gorilla/sessions"
 	"encoding/base64"
 	"crypto/rand"
+//	"github.com/astaxie/beego/session"
+//	"github.com/astaxie/beego/session"
 )
 
 // data structure authentication request
@@ -81,16 +83,20 @@ type Home struct {
 	Username string
 }
 
+type LoginReg struct {
+	ErrorMsg string
+}
+
 // set your okta org URL and API key here
 // these can be provided at build time or in a config
 // setting these values during the build is the most secure way of doing it
 const (
-	oktaOrg string = "https://vorton.okta.com"
-	oktaKey string = "SSWS 00U_IlbOhvpKH7EA8KwuKYZs2dmnBy47dSaUQr-Zvw"
+	oktaOrg string = "https://orton.oktapreview.com"
+	oktaKey string = "SSWS 00M5lbj56GhXacnJ4_7SaJ8kOHuoMj05Ftjur96TDQ"
 	authEndPoint string = "/api/v1/authn"
 	userEndPoint string = "/api/v1/users?activate=true"
-	loginRedirect string = "/home/vannortondemo_samplegolangapp_1/0oaarewi1qL8QyiKg0x7/alnarf8ei1vAq9y9n0x7"
-	groupID string = "00gauck8lf1xT4Vcr0x7"
+	loginRedirect string = "/home/oidc_client/0oa9jl4it7ORWEETT0h7/aln5z7uhkbM6y7bMy0g7"
+	groupID string = "00g9jl6vo98RI9pGQ0h7"
 )
 
 // GenerateRandomBytes returns securely generated random bytes.
@@ -134,7 +140,7 @@ func appHome(w http.ResponseWriter, r *http.Request) {
 	r.ParseForm()
 
 	// Get the user's session data if any
-	// If the user is not logged in then a new nession will be initialized with nothing in it
+	// If the user is not logged in then a new session will be initialized with nothing in it
 	session, err := store.Get(r, "session-name")
 
 	// print out session data
@@ -201,6 +207,20 @@ func login(w http.ResponseWriter, r *http.Request) {
 	// This will parse all the form data from the user sent in the request
 	r.ParseForm()
 
+	// create a new active session.
+	// the same method is used for getting an active session in appHome
+	// TODO somthing more descriptive than session-name
+	session, err := store.Get(r, "session-name")
+	_ = err
+
+	//  set session to expire after one day
+	// time here is represented in seconds so 2 days would be 86400 * 2 and so on
+	session.Options = &sessions.Options{
+		Path:     "/",
+		MaxAge:   86400,
+		HttpOnly: true,
+	}
+
 	// Initialize the interface to the signOn struct
 	signOnData := signOn{}
 
@@ -253,31 +273,11 @@ func login(w http.ResponseWriter, r *http.Request) {
 
 	// unmarshal the []byte body which represents the json returned in the response
 	// loginRes is a interface to the oktaSession struct
-	err := json.Unmarshal(body, &loginRes)
+	json.Unmarshal(body, &loginRes)
 
-	// check for errors in the unmarshaling prosses and if we find any print them out
-	// and stop there with return
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
 
 	// if the login response has a status of 200 OK then let's prep the user to access the app
 	if res.Status == "200 OK" {
-
-		// create a new active session.
-		// the same method is used for getting an active session in appHome
-		// TODO somthing more descriptive than session-name
-		session, err := store.Get(r, "session-name")
-		_ = err
-
-		//  set session to expire after one day
-		// time here is represented in seconds so 2 days would be 86400 * 2 and so on
-		session.Options = &sessions.Options{
-			Path:     "/",
-			MaxAge:   86400,
-			HttpOnly: true,
-		}
 
 		// set some session values to ID the user
 		// accessToken, full name, and user ID for now.
@@ -299,16 +299,12 @@ func login(w http.ResponseWriter, r *http.Request) {
 		// can be accessed without prompting for reauthentication
 		http.Redirect(w, r, loginURL, 301)
 
-		// TODO error handling needs to be implemented here for authentication failures
-		// TODO error messages to the user will be stored as FlashMessages in the session so that
-		// TODO so that they are automatically removed once they are read
-
-		// TODO error conditions to start:
-		// TODO 	authentication failure bad username and or password
-		} else {
+	} else {
 
 		// print out the response status from the login response when not "200 OK"
 		fmt.Println("http error code is...", res.Status)
+		session.AddFlash("Invalid username/password. For help use the \"Forgot Password Link\"")
+
 
 		// dump any error information set be the httpRequest execution
 		fmt.Println(httpErr)
@@ -322,6 +318,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// This will take the form values from the page and create a new user in okta
 func register(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("method:", r.Method) //get request method
 
@@ -397,14 +394,28 @@ func register(w http.ResponseWriter, r *http.Request) {
 	login(w, r)
 }
 
-
+// This will render the page for logging and registering a new user
 func loginAndRegister(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
+
+		session, err := store.Get(r, "session-name")
+		loginScreen := LoginReg{}
+
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+
+		// Get the previously flashes, if any.
+		if flashes := session.Flashes(); len(flashes) > 0 {
+			loginScreen.ErrorMsg = flashes[0].(string)
+		}
+
 		t, _ := template.ParseFiles("html/loginAndRegister.html")
-		t.Execute(w, nil)
+		t.Execute(w, loginScreen)
 	}
 }
 
+// process the logout request when the user clicks logout
 func logout(w http.ResponseWriter, r *http.Request){
 	url := oktaOrg + "/login/signout"
 	req, _ := http.NewRequest("GET", url, nil)
@@ -427,12 +438,14 @@ func logout(w http.ResponseWriter, r *http.Request){
 	loginAndRegister(w, r)
 }
 
+// all the money is here
 func main() {
 	http.HandleFunc("/", appHome) // setting router rule
 	http.HandleFunc("/login", login)
 	http.HandleFunc("/register", register)
 	http.HandleFunc("/logout", logout)
 	http.Handle("/html/", http.StripPrefix("/html/", http.FileServer(http.Dir("./html"))))
+	http.Handle("/img/", http.StripPrefix("/img/", http.FileServer(http.Dir("./img"))))
 	http.HandleFunc("/loginAndRegister", loginAndRegister)
 	beego.SetStaticPath("/html", "/html")
 	err := http.ListenAndServeTLS(":9090", "server.crt", "server.key", nil) // setting listening port
