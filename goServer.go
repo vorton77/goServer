@@ -17,8 +17,7 @@ import (
 	"github.com/gorilla/sessions"
 	"encoding/base64"
 	"crypto/rand"
-//	"github.com/astaxie/beego/session"
-//	"github.com/astaxie/beego/session"
+	"net/url"
 )
 
 // data structure authentication request
@@ -95,7 +94,7 @@ const (
 	oktaKey string = "SSWS 00M5lbj56GhXacnJ4_7SaJ8kOHuoMj05Ftjur96TDQ"
 	authEndPoint string = "/api/v1/authn"
 	userEndPoint string = "/api/v1/users?activate=true"
-	loginRedirect string = "/home/oidc_client/0oa9jl4it7ORWEETT0h7/aln5z7uhkbM6y7bMy0g7"
+	//loginRedirect string = "/home/oidc_client/0oa9jl4it7ORWEETT0h7/aln5z7uhkbM6y7bMy0g7"
 	groupID string = "00g9jl6vo98RI9pGQ0h7"
 )
 
@@ -138,6 +137,13 @@ func appHome(w http.ResponseWriter, r *http.Request) {
 	//Parse url parameters passed, then parse the response packet for the POST body (request body)
 	// attention: If you do not call ParseForm method, then r.Form with not contain the URL params
 	r.ParseForm()
+
+	// print out all the request parameters set back from okta
+	// this should be SAMLResponse and RelayState
+	for k, v := range r.Form {
+		fmt.Println("key:", k)
+		fmt.Println("val:", strings.Join(v, ""))
+	}
 
 	// Get the user's session data if any
 	// If the user is not logged in then a new session will be initialized with nothing in it
@@ -243,11 +249,11 @@ func login(w http.ResponseWriter, r *http.Request) {
 	// construct the URL for okta authentication
 	// oktaOrg is the URL for the okta org Ex. https://company.okta.com
 	// authEndPoint is the rest of the URL needed to hit the AuthN API Ex. /api/v1/authn
-	url := oktaOrg + authEndPoint
+	host := oktaOrg + authEndPoint
 
 	// create the new http request object that will call the API with the
 	// above URL and the marshaled json
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
+	req, _ := http.NewRequest("POST", host, bytes.NewBuffer(jsonReq))
 
 	// add headers to the request including the admin API key
 	// the postman token still needs to be dealt with
@@ -292,7 +298,14 @@ func login(w http.ResponseWriter, r *http.Request) {
 		// oktaOrg is https://company.okta.com
 		// loginRes.Session is the session token returned from the login request
 		// IMPORTANT: oktaOrg + loginRedirect is the application embed link from okta which points back to appHome
-		loginURL := oktaOrg + "/login/sessionCookieRedirect?token=" + loginRes.SessionToken + "&redirectUrl=" + oktaOrg + loginRedirect
+
+		encodedURL := url.QueryEscape(oktaOrg + "/oauth2/v1/authorize?response_type=id_token%20token&response_mode=form_post&client_id=4Wp3uosamN9tiriYfbv4&redirect_uri=https://localhost:9090&scope=openid%20profile&state=af0ifjsldkj&nonce=n-0S6_WzA2Mj")
+
+
+		loginURL := oktaOrg + "/login/sessionCookieRedirect?token=" + loginRes.SessionToken + "&redirectUrl=" + encodedURL
+
+		//https://orton.oktapreview.com/oauth2/v1/authorize?response_type=id_token%20token&client_id=4Wp3uosamN9tiriYfbv4&redirect_uri=https://oktaproxy.com/oidc&scope=openid%20profile&state=af0ifjsldkj&nonce=n-0S6_WzA2Mj
+
 
 		// redirect the user's browser
 		// this allows okta to set the okta session cookies so other applications
@@ -358,10 +371,10 @@ func register(w http.ResponseWriter, r *http.Request) {
 
 	// build the URL to the add user API end point in okta
 	// see constants at the top
-	url := oktaOrg + userEndPoint
+	regurl := oktaOrg + userEndPoint
 
 	//  create a new http request object with the []byte from json.Marshal and the url
-	req, _ := http.NewRequest("POST", url, bytes.NewBuffer(jsonReq))
+	req, _ := http.NewRequest("POST", regurl, bytes.NewBuffer(jsonReq))
 
 	// add http header info for the API call including the admin API access key
 	req.Header.Add("accept", "application/json")
@@ -417,8 +430,8 @@ func loginAndRegister(w http.ResponseWriter, r *http.Request) {
 
 // process the logout request when the user clicks logout
 func logout(w http.ResponseWriter, r *http.Request){
-	url := oktaOrg + "/login/signout"
-	req, _ := http.NewRequest("GET", url, nil)
+	logoutUrl := oktaOrg + "/login/signout"
+	req, _ := http.NewRequest("GET", logoutUrl, nil)
 	res, _ := http.DefaultClient.Do(req)
 	defer res.Body.Close()
 
